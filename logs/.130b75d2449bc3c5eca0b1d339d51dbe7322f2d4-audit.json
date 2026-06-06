@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\logs\\.130b75d2449bc3c5eca0b1d339d51dbe7322f2d4-audit.json",
+    "files": [
+        {
+            "date": 1780687009536,
+            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\logs\\exceptions-2026-06-06.log",
+            "hash": "c5529f5518ad234ec3eea5a63c0e4d328a4bad67cfc43983c37f3b3fc177bae2"
+        }
+    ],
+    "hashType": "sha256"
+}
