@@ -1,7 +1,11 @@
 'use strict';
-const QuotationService = require('./quotation.service');
-const ApiResponse      = require('../../utils/ApiResponse');
-const asyncHandler     = require('../../utils/asyncHandler');
+const QuotationService  = require('./quotation.service');
+const QuotationRepository = require('./quotation.repository');
+const SettingsRepository  = require('../settings/settings.repository');
+const { streamQuotationPDF } = require('../../utils/pdfGenerator');
+const ApiResponse       = require('../../utils/ApiResponse');
+const asyncHandler      = require('../../utils/asyncHandler');
+const ApiError          = require('../../utils/ApiError');
 
 const create = asyncHandler(async (req, res) => {
   const quotation = await QuotationService.create(req.body, req.user._id);
@@ -33,9 +37,12 @@ const duplicate = asyncHandler(async (req, res) => {
   ApiResponse.created(res, quotation, 'Quotation duplicated');
 });
 
+// ── Stream PDF directly (works on Render free tier) ──
 const generatePDF = asyncHandler(async (req, res) => {
-  const pdfUrl = await QuotationService.generatePDF(req.params.id);
-  ApiResponse.success(res, { pdfUrl }, 'PDF generated');
+  const quotation = await QuotationRepository.findById(req.params.id);
+  if (!quotation) throw ApiError.notFound('Quotation not found');
+  const settings = (await SettingsRepository.get()) || {};
+  await streamQuotationPDF(quotation, settings, res);
 });
 
 const list = asyncHandler(async (req, res) => {

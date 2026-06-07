@@ -14,6 +14,9 @@ const quotationItemSchema = z.object({
 const createQuotationSchema = z.object({
   customerId:      z.string().min(24).max(24).optional().or(z.literal('').transform(() => undefined)),
   customerName:    z.string().trim().max(150).optional(),
+  customerMobile:  z.string().trim().max(15).optional(),
+  customerAddress: z.string().trim().max(300).optional(),
+  customerGst:     z.string().trim().toUpperCase().max(15).optional(),
   items:           z.array(quotationItemSchema).min(1, 'At least one item is required'),
   overallDiscount: z.number().min(0).max(100).optional().default(0),
   notes:           z.string().trim().max(500).optional(),

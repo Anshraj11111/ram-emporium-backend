@@ -61,8 +61,13 @@ class QuotationService {
         gstNumber: customer.gstNumber,
         address:   [customer.address, customer.city, customer.state].filter(Boolean).join(', '),
       }
-    } else if (data.customerName) {
-      customerSnapshot = { name: data.customerName }
+    } else if (data.customerName || data.customerMobile) {
+      customerSnapshot = {
+        name:      data.customerName    || 'Walk-in',
+        mobile:    data.customerMobile  || '',
+        gstNumber: data.customerGst     || '',
+        address:   data.customerAddress || '',
+      }
     }
 
     const items      = await QuotationService._buildItems(data.items);

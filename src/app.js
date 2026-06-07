@@ -22,9 +22,23 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin:      env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    const allowed = [
+      env.FRONTEND_URL,
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://ram-emporium-88t4.vercel.app',
+      'https://ram-emporium.vercel.app',
+      'https://ram-emporium-frontend.vercel.app',
+    ].filter(Boolean)
+    if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, true)
+    }
+    callback(new Error('Not allowed by CORS'))
+  },
   credentials: true,
-  methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
