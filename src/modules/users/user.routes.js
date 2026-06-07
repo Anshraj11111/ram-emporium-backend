@@ -8,6 +8,7 @@ const { ROLES }    = require('../../constants');
 router.use(authenticate);
 
 router.get('/',                   authorize(ROLES.ADMIN), controller.getAll);
+router.post('/admin-create',      authorize(ROLES.ADMIN), controller.adminCreate);
 router.get('/:id',                controller.getById);
 router.put('/:id',                controller.update);
 router.patch('/:id/deactivate',   authorize(ROLES.ADMIN), controller.deactivate);

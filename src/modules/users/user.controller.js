@@ -15,10 +15,7 @@ const getById = asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const user = await UserService.update(
-    req.params.id,
-    req.body,
-    req.user._id,
-    req.user.role
+    req.params.id, req.body, req.user._id, req.user.role
   );
   ApiResponse.success(res, user, 'User updated');
 });
@@ -33,4 +30,10 @@ const activate = asyncHandler(async (req, res) => {
   ApiResponse.success(res, null, 'User activated');
 });
 
-module.exports = { getAll, getById, update, deactivate, activate };
+// Admin creates a user — directly verified, no email needed
+const adminCreate = asyncHandler(async (req, res) => {
+  const user = await UserService.adminCreate(req.body);
+  ApiResponse.created(res, user, 'User created successfully');
+});
+
+module.exports = { getAll, getById, update, deactivate, activate, adminCreate };
