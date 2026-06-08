@@ -16,14 +16,14 @@ const routes          = require('./routes');
 
 const app = express();
 
-// ── Security middleware ───────────────────────────
+// ── Security ─────────────────────────────────────
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow PDF serving
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true)
+    if (!origin) return callback(null, true);
     const allowed = [
       env.FRONTEND_URL,
       'http://localhost:3000',
@@ -31,14 +31,14 @@ app.use(cors({
       'https://ram-emporium-88t4.vercel.app',
       'https://ram-emporium.vercel.app',
       'https://ram-emporium-frontend.vercel.app',
-    ].filter(Boolean)
+    ].filter(Boolean);
     if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
-      return callback(null, true)
+      return callback(null, true);
     }
-    callback(new Error('Not allowed by CORS'))
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -50,8 +50,8 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ── Sanitisation ─────────────────────────────────
-app.use(mongoSanitize());  // Prevent NoSQL injection
-app.use(hpp());             // Prevent HTTP parameter pollution
+app.use(mongoSanitize());
+app.use(hpp());
 
 // ── Logging ───────────────────────────────────────
 app.use(requestLogger);
@@ -80,8 +80,7 @@ app.use((req, res) => {
   ApiResponse.error(res, 404, `Route ${req.originalUrl} not found`, 'NOT_FOUND');
 });
 
-// ── Central error handler (must be last) ──────────
+// ── Central error handler ─────────────────────────
 app.use(errorHandler);
 
 module.exports = app;
-conti

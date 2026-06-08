@@ -42,6 +42,13 @@ process.on('uncaughtException', (err) => {
 
 // ── Bootstrap ─────────────────────────────────────
 const start = async () => {
+  // Startup diagnostics — helps debug Render deploy issues
+  console.log(`[BOOT] Node.js ${process.version}`);
+  console.log(`[BOOT] NODE_ENV = ${process.env.NODE_ENV}`);
+  console.log(`[BOOT] PORT     = ${process.env.PORT}`);
+  console.log(`[BOOT] MONGO_URI set: ${!!process.env.MONGO_URI}`);
+  console.log(`[BOOT] JWT_ACCESS_SECRET set: ${!!process.env.JWT_ACCESS_SECRET}`);
+
   await connectDB();
 
   server.listen(env.PORT, () => {
@@ -51,4 +58,8 @@ const start = async () => {
   });
 };
 
-start();
+start().catch(err => {
+  console.error('[BOOT] Fatal startup error:', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});

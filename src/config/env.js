@@ -52,13 +52,15 @@ const env = {
 
 /**
  * Validate critical environment variables at startup.
- * Skip hard validation in test env (MongoMemoryServer sets URI dynamically).
+ * Log warning instead of crash — Render injects vars at runtime.
  */
 if (process.env.NODE_ENV !== 'test') {
   const required = ['MONGO_URI', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
   for (const key of required) {
     if (!env[key]) {
-      throw new Error(`Missing required environment variable: ${key}`);
+      console.error(`[FATAL] Missing required environment variable: ${key}`);
+      console.error('[FATAL] Please set this in Render → Environment → Add Environment Variable');
+      process.exit(1);
     }
   }
 }
