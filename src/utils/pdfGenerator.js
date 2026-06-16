@@ -1,5 +1,6 @@
 'use strict';
 const PDFDocument = require('pdfkit');
+const QRCode      = require('qrcode');
 const fs          = require('fs');
 const path        = require('path');
 const env         = require('../config/env');
@@ -18,8 +19,29 @@ const trunc   = (s, len = 35) => String(s || '').substring(0, len);
 const C = {
   header: '#1E3A5F', accent: '#2563EB', white: '#FFFFFF',
   light: '#F8FAFC', border: '#CBD5E1', text: '#1E293B',
-  sub: '#64748B', red: '#DC2626',
+  sub: '#64748B', red: '#DC2626', green: '#16A34A',
 };
+
+// ── Generate UPI QR as PNG buffer ─────────────────────────────────────────
+async function generateUpiQrBuffer(upiId, name, amount, note) {
+  if (!upiId) return null;
+  try {
+    const upiLink = amount > 0
+      ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name || 'RAM EMPORIUM')}&am=${safeNum(amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note || 'Payment')}`
+      : `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name || 'RAM EMPORIUM')}&cu=INR`;
+
+    const buffer = await QRCode.toBuffer(upiLink, {
+      type:   'png',
+      width:  120,
+      margin: 1,
+      color:  { dark: '#1E293B', light: '#F8FAFC' },
+      errorCorrectionLevel: 'M',
+    });
+    return buffer;
+  } catch {
+    return null;
+  }
+}
 
 function drawHeader(doc, settings, title) {
   doc.rect(30, 30, 555, 75).fill(C.header);
@@ -128,45 +150,97 @@ function drawTotals(doc, bill, y) {
   return ty + 20;
 }
 
+// ── Draw UPI QR section at bottom of bill ─────────────────────────────────
+function drawUpiSection(doc, settings, amount, billNo, y) {
+  if (!settings.upiId) return y;
+
+  // Box
+  const boxH = 110;
+  if (y + boxH > 760) { doc.addPage(); y = 40; }
+
+  doc.rect(30, y, 555, boxH).fillAndStroke('#F0F4FF', '#CBD5E1');
+
+  // Title
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(C.accent)
+     .text('PAYMENT VIA UPI', 38, y + 8);
+
+  doc.font('Helvetica').fontSize(8).fillColor(C.sub)
+     .text(`UPI ID: ${settings.upiId}`, 38, y + 22);
+
+  // Bank details
+  let bx = y + 36;
+  if (settings.bankName) {
+    doc.text(`Bank: ${settings.bankName}`, 38, bx); bx += 11;
+  }
+  if (settings.bankAccountNo) {
+    doc.text(`A/C No: ${settings.bankAccountNo}`, 38, bx); bx += 11;
+  }
+  if (settings.bankIfsc) {
+    doc.text(`IFSC: ${settings.bankIfsc}`, 38, bx);
+  }
+
+  // Amount to pay
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(C.green)
+     .text(`Amount: ${fmt(amount)}`, 38, y + boxH - 22);
+
+  // QR placeholder box (actual QR image drawn after async generation)
+  doc.rect(440, y + 8, 95, 95).fillAndStroke('#FFFFFF', '#CBD5E1');
+  doc.font('Helvetica').fontSize(7).fillColor(C.sub)
+     .text('Scan to Pay', 440, y + 100, { width: 95, align: 'center' });
+
+  return { qrX: 441, qrY: y + 9, qrSize: 93, nextY: y + boxH + 8 };
+}
+
 function drawFooter(doc, settings, y) {
   if (y > 700) { doc.addPage(); y = 40; }
-
-  // Bank / UPI details
-  if (settings.bankName || settings.upiId) {
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(C.accent).text('Payment Details:', 35, y);
-    y += 11;
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.sub);
-    if (settings.bankName)    doc.text(`Bank: ${settings.bankName}`, 35, y); y += 10;
-    if (settings.bankAccountNo) doc.text(`A/C: ${settings.bankAccountNo}`, 35, y); y += 10;
-    if (settings.bankIfsc)    doc.text(`IFSC: ${settings.bankIfsc}`, 35, y); y += 10;
-    if (settings.upiId)       doc.text(`UPI: ${settings.upiId}`, 35, y); y += 10;
-    y += 5;
-  }
 
   if (settings.termsConditions) {
     doc.font('Helvetica-Bold').fontSize(8).fillColor(C.accent).text('Terms & Conditions:', 35, y);
     y += 11;
     doc.font('Helvetica').fontSize(7.5).fillColor(C.sub)
-       .text(settings.termsConditions, 35, y, { width: 300 });
+       .text(settings.termsConditions, 35, y, { width: 320 });
   }
+
+  // ── Signature block ──────────────────────────────
+  const sigX = 400;
+  const sigY = y + 5;
+
+  // Embed signature — supports both base64 data URI and file path
+  if (settings.signature) {
+    try {
+      if (settings.signature.startsWith('data:')) {
+        // base64 data URI — convert to buffer for PDFKit
+        const base64Data = settings.signature.split(',')[1];
+        const imgBuffer  = Buffer.from(base64Data, 'base64');
+        doc.image(imgBuffer, sigX, sigY, { width: 160, height: 42, fit: [160, 42] });
+      } else if (fs.existsSync(settings.signature)) {
+        // Local file path
+        doc.image(settings.signature, sigX, sigY, { width: 160, height: 42, fit: [160, 42] });
+      }
+    } catch { /* skip if image fails */ }
+  }
+
+  const lineY = sigY + 50;
   doc.font('Helvetica').fontSize(8).fillColor(C.text);
-  doc.text('Authorised Signatory', 420, y + 20, { width: 150, align: 'center' });
-  doc.moveTo(415, y + 45).lineTo(575, y + 45).strokeColor(C.border).lineWidth(0.5).stroke();
+  doc.text('Authorised Signatory', sigX, lineY, { width: 160, align: 'center' });
+  doc.moveTo(sigX - 5, lineY + 14).lineTo(sigX + 165, lineY + 14)
+     .strokeColor(C.border).lineWidth(0.5).stroke();
   doc.fillColor(C.sub).fontSize(7.5)
-     .text(settings.shopName || 'RAM EMPORIUM', 415, y + 48, { width: 160, align: 'center' });
+     .text(settings.shopName || 'RAM EMPORIUM', sigX, lineY + 17, { width: 160, align: 'center' });
 }
 
-// ── Build PDF doc (shared) ─────────────────────────────────────
-function buildPDFDoc(type, doc, data, settings) {
+// ── Shared PDF builder (async — supports QR) ──────────────────────────────
+async function buildPDFDocAsync(type, doc, data, settings) {
   const isGst = type === 'bill' ? data.type === 'GST' : true;
-  const title = type === 'bill'
+  const isBill = type === 'bill';
+  const title = isBill
     ? (isGst ? `TAX INVOICE  –  ${data.billNo}` : `INVOICE  –  ${data.billNo}`)
     : `QUOTATION  –  ${data.quotationNo}`;
 
   const snap = data.customerSnapshot || {};
   let y = drawHeader(doc, settings, title);
 
-  const leftLines = type === 'bill' ? [
+  const leftLines = isBill ? [
     { label: 'Invoice No:', value: data.billNo },
     { label: 'Date:',       value: data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-IN') : '-' },
     { label: 'Payment:',    value: data.paymentMode || '-' },
@@ -189,48 +263,80 @@ function buildPDFDoc(type, doc, data, settings) {
   y = drawTableHeader(doc, y, isGst);
   y = drawItems(doc, data.items || [], y, isGst);
   y = drawTotals(doc, data, y + 6);
+
+  // ── UPI QR Section (bills only, if UPI ID is configured) ─────────────
+  if (isBill && settings.upiId) {
+    const payAmount = safeNum(data.dueAmount) > 0 ? data.dueAmount : data.grandTotal;
+    const upiResult = drawUpiSection(doc, settings, payAmount, data.billNo, y + 10);
+
+    if (upiResult && upiResult.qrX) {
+      // Generate QR PNG asynchronously and embed into PDF
+      const qrBuffer = await generateUpiQrBuffer(
+        settings.upiId,
+        settings.shopName,
+        payAmount,
+        `Payment for ${data.billNo}`
+      );
+
+      if (qrBuffer) {
+        doc.image(qrBuffer, upiResult.qrX, upiResult.qrY, {
+          width:  upiResult.qrSize,
+          height: upiResult.qrSize,
+        });
+      }
+
+      y = upiResult.nextY;
+    }
+  }
+
   drawFooter(doc, settings, y + 10);
 }
 
 // ═══════════════════════════════════════════════════
-// Stream PDF directly to HTTP response (no file storage)
+// Stream PDF directly to HTTP response
 // ═══════════════════════════════════════════════════
 const streamBillPDF = (bill, settings, res) => {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 30 });
-    const filename = `${String(bill.billNo || 'BILL').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 30 });
+      const filename = `${String(bill.billNo || 'BILL').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.on('error', reject);
 
-    doc.pipe(res);
-    buildPDFDoc('bill', doc, bill, settings || {});
-    doc.end();
-
-    res.on('finish', resolve);
-    res.on('error',  reject);
+      doc.pipe(res);
+      await buildPDFDocAsync('bill', doc, bill, settings || {});
+      doc.end();
+      resolve();
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 
 const streamQuotationPDF = (quotation, settings, res) => {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 30 });
-    const filename = `${String(quotation.quotationNo || 'QT').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 30 });
+      const filename = `${String(quotation.quotationNo || 'QT').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.on('error', reject);
 
-    doc.pipe(res);
-    buildPDFDoc('quotation', doc, quotation, settings || {});
-    doc.end();
-
-    res.on('finish', resolve);
-    res.on('error',  reject);
+      doc.pipe(res);
+      await buildPDFDocAsync('quotation', doc, quotation, settings || {});
+      doc.end();
+      resolve();
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 
 // ═══════════════════════════════════════════════════
-// Save to disk (for local dev / when storage available)
+// Save to disk (local dev)
 // ═══════════════════════════════════════════════════
 const generateBillPDF = async (bill, settings = {}) => {
   const isGst  = bill.type === 'GST';
@@ -241,12 +347,13 @@ const generateBillPDF = async (bill, settings = {}) => {
   const filename   = `${safeBillNo}-${randomHex(4)}.pdf`;
   const filepath   = path.join(dir, filename);
   const pdfUrl     = `${env.PDF_BASE_URL}/${subDir}/${filename}`;
+
+  const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  const out  = fs.createWriteStream(filepath);
+  doc.pipe(out);
+  await buildPDFDocAsync('bill', doc, bill, settings);
+  doc.end();
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 30 });
-    const out = fs.createWriteStream(filepath);
-    doc.pipe(out);
-    buildPDFDoc('bill', doc, bill, settings);
-    doc.end();
     out.on('finish', () => resolve(pdfUrl));
     out.on('error',  reject);
   });
@@ -259,12 +366,13 @@ const generateQuotationPDF = async (quotation, settings = {}) => {
   const filename = `${safeNo}-${randomHex(4)}.pdf`;
   const filepath = path.join(dir, filename);
   const pdfUrl   = `${env.PDF_BASE_URL}/quotations/${filename}`;
+
+  const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  const out  = fs.createWriteStream(filepath);
+  doc.pipe(out);
+  await buildPDFDocAsync('quotation', doc, quotation, settings);
+  doc.end();
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 30 });
-    const out = fs.createWriteStream(filepath);
-    doc.pipe(out);
-    buildPDFDoc('quotation', doc, quotation, settings);
-    doc.end();
     out.on('finish', () => resolve(pdfUrl));
     out.on('error',  reject);
   });

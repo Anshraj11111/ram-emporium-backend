@@ -56,8 +56,9 @@ app.use(hpp());
 // ── Logging ───────────────────────────────────────
 app.use(requestLogger);
 
-// ── Static files (PDFs) ───────────────────────────
-app.use('/pdfs', express.static(path.resolve(env.PDF_STORAGE_PATH)));
+// ── Static files (PDFs + Uploads) ────────────────
+app.use('/pdfs',    express.static(path.resolve(env.PDF_STORAGE_PATH)));
+app.use('/uploads', express.static(path.resolve('./public/uploads')));
 
 // ── Rate limiting ─────────────────────────────────
 app.use('/api', defaultLimiter);

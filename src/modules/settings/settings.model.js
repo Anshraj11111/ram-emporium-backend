@@ -12,7 +12,10 @@ const settingsSchema = new mongoose.Schema(
     state:            { type: String, trim: true },
     pincode:          { type: String, trim: true },
     gstNumber:        { type: String, trim: true, uppercase: true },
-    logo:             { type: String },  // URL / path to logo file
+    logo:             { type: String },  // base64 data URI or URL
+    logoUrl:          { type: String },
+    signature:        { type: String },  // base64 data URI — persists on cloud
+    signatureUrl:     { type: String },  // same as signature (for frontend display)
     invoicePrefix:    { type: String, default: 'GST',    trim: true },
     nonGstPrefix:     { type: String, default: 'NONGST', trim: true },
     quotationPrefix:  { type: String, default: 'QT',     trim: true },
