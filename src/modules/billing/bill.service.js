@@ -200,6 +200,13 @@ class BillService {
 
     return { bills, pagination: buildPaginationMeta(total, page, limit) };
   }
+
+  static async delete(id) {
+    const bill = await BillRepository.findById(id);
+    if (!bill) throw ApiError.notFound('Bill not found');
+    await BillRepository.deleteById(id);
+    return true;
+  }
 }
 
 module.exports = BillService;

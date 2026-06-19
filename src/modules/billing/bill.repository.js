@@ -24,6 +24,10 @@ class BillRepository {
     return Bill.findByIdAndUpdate(id, data, opts).lean();
   }
 
+  static deleteById(id) {
+    return Bill.findByIdAndDelete(id);
+  }
+
   static async findAll({ search, type, customerId, startDate, endDate }, { skip, limit }) {
     const query = {};
 

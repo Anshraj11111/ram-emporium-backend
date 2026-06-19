@@ -16,6 +16,10 @@ const routes          = require('./routes');
 
 const app = express();
 
+// ── Trust proxy (required on Render/Railway/Heroku) ───
+// Render sits behind a load balancer that sets X-Forwarded-For
+app.set('trust proxy', 1);
+
 // ── Security ─────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },

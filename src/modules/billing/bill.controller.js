@@ -37,4 +37,9 @@ const list = asyncHandler(async (req, res) => {
   ApiResponse.paginated(res, result.bills, result.pagination);
 });
 
-module.exports = { create, convertFromQuotation, getById, generatePDF, list };
+const deleteBill = asyncHandler(async (req, res) => {
+  await BillService.delete(req.params.id);
+  ApiResponse.success(res, null, 'Bill deleted');
+});
+
+module.exports = { create, convertFromQuotation, getById, generatePDF, list, deleteBill };

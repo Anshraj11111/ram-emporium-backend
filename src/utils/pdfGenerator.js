@@ -185,8 +185,6 @@ function drawUpiSection(doc, settings, amount, billNo, y) {
 
   // QR placeholder box (actual QR image drawn after async generation)
   doc.rect(440, y + 8, 95, 95).fillAndStroke('#FFFFFF', '#CBD5E1');
-  doc.font('Helvetica').fontSize(7).fillColor(C.sub)
-     .text('Scan to Pay', 440, y + 100, { width: 95, align: 'center' });
 
   return { qrX: 441, qrY: y + 9, qrSize: 93, nextY: y + boxH + 8 };
 }
