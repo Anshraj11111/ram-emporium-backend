@@ -10,9 +10,11 @@ const createProductSchema = z.object({
   purchasePrice: z.number().min(0).optional().default(0),
   sellingPrice:  z.number().min(0),
   priceUnit:     z.string().trim().max(50).optional().or(z.literal('').transform(() => undefined)),
-  gstRate:       z.number().refine((v) => GST_RATES.includes(v), {
-    message: `GST rate must be one of ${GST_RATES.join(', ')}`,
-  }).default(18),
+  cgst:          z.number().min(0).max(50).optional().default(9),
+  sgst:          z.number().min(0).max(50).optional().default(9),
+  gstRate:       z.number().refine((v) => v >= 0 && v <= 100, {
+    message: 'GST rate must be between 0 and 100',
+  }).optional(),
   stockQty:      z.number().min(0).optional().default(0),
   location:      z.string().trim().max(100).optional(),
   minStockLevel: z.number().min(0).optional().default(5),

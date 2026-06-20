@@ -7,7 +7,7 @@ const billItemSchema = z.object({
   quantity:           z.number().min(1),
   rate:               z.number().min(0),
   discountPercentage: z.number().min(0).max(100).optional().default(0),
-  gstRate:            z.number().refine((v) => GST_RATES.includes(v)).optional(),
+  gstRate:            z.number().min(0).max(100).optional(),
   productName:        z.string().trim().optional(),
 });
 

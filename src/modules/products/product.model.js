@@ -42,6 +42,8 @@ const productSchema = new mongoose.Schema(
       enum:    { values: GST_RATES, message: 'Invalid GST rate' },
       default: 18,
     },
+    cgst: { type: Number, default: 9 },
+    sgst: { type: Number, default: 9 },
     stockQty: {
       type:    Number,
       default: 0,

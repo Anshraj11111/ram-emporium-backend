@@ -87,45 +87,68 @@ function drawTableHeader(doc, y, isGst) {
   doc.rect(30, y, 555, 17).fill(C.header);
   doc.fillColor(C.white).font('Helvetica-Bold').fontSize(7.5);
   doc.text('#',           35,  y + 5, { width: 20 });
-  doc.text('DESCRIPTION', 58,  y + 5, { width: 160 });
-  doc.text('QTY',         225, y + 5, { width: 50,  align: 'right' });
-  doc.text('RATE',        280, y + 5, { width: 60,  align: 'right' });
-  doc.text('DISC%',       345, y + 5, { width: 45,  align: 'right' });
-  if (isGst) doc.text('GST%', 395, y + 5, { width: 40, align: 'right' });
-  doc.text('AMOUNT',      440, y + 5, { width: 140, align: 'right' });
+  doc.text('DESCRIPTION', 58,  y + 5, { width: 155 });
+  doc.text('QTY',         220, y + 5, { width: 45,  align: 'right' });
+  doc.text('RATE',        270, y + 5, { width: 55,  align: 'right' });
+  doc.text('DISC%',       330, y + 5, { width: 40,  align: 'right' });
+  if (isGst) {
+    doc.text('CGST%',     375, y + 5, { width: 38,  align: 'right' });
+    doc.text('SGST%',     418, y + 5, { width: 38,  align: 'right' });
+    doc.text('AMOUNT',    460, y + 5, { width: 120, align: 'right' });
+  } else {
+    doc.text('AMOUNT',    375, y + 5, { width: 205, align: 'right' });
+  }
   return y + 17;
 }
 
 function drawItems(doc, items, startY, isGst) {
   let y = startY, flip = false;
   for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const rowH = 15;
+    const item  = items[i];
+    const rowH  = 15;
+    const cgst  = safeNum(item.gstRate) / 2;   // split equally
+    const sgst  = safeNum(item.gstRate) / 2;
+
     if (y + rowH > 760) { doc.addPage(); y = 40; y = drawTableHeader(doc, y, isGst); }
     if (flip) doc.rect(30, y, 555, rowH).fill('#F1F5F9');
     flip = !flip;
+
     doc.fillColor(C.text).font('Helvetica').fontSize(8);
     doc.text(String(i + 1),                          35,  y + 3, { width: 20 });
-    doc.text(trunc(item.productName),                58,  y + 3, { width: 160 });
-    doc.text(`${safeNum(item.quantity)} ${item.unit || ''}`, 225, y + 3, { width: 50,  align: 'right' });
-    doc.text(fmt(item.rate),                         280, y + 3, { width: 60,  align: 'right' });
-    doc.text(`${safeNum(item.discountPercentage)}%`, 345, y + 3, { width: 45,  align: 'right' });
-    if (isGst) doc.text(`${safeNum(item.gstRate)}%`, 395, y + 3, { width: 40, align: 'right' });
-    doc.text(fmt(item.totalAmount),                  440, y + 3, { width: 140, align: 'right' });
+    doc.text(trunc(item.productName),                58,  y + 3, { width: 155 });
+    doc.text(`${safeNum(item.quantity)} ${item.unit||''}`, 220, y + 3, { width: 45, align: 'right' });
+    doc.text(fmt(item.rate),                         270, y + 3, { width: 55,  align: 'right' });
+    doc.text(`${safeNum(item.discountPercentage)}%`, 330, y + 3, { width: 40,  align: 'right' });
+    if (isGst) {
+      doc.text(`${cgst}%`,  375, y + 3, { width: 38, align: 'right' });
+      doc.text(`${sgst}%`,  418, y + 3, { width: 38, align: 'right' });
+      doc.text(fmt(item.totalAmount), 460, y + 3, { width: 120, align: 'right' });
+    } else {
+      doc.text(fmt(item.totalAmount), 375, y + 3, { width: 205, align: 'right' });
+    }
     y += rowH;
   }
   doc.moveTo(30, y).lineTo(585, y).strokeColor(C.border).lineWidth(0.5).stroke();
   return y + 6;
 }
 
-function drawTotals(doc, bill, y) {
-  const rows = [{ label: 'Subtotal', value: fmt(bill.subtotal) }];
+function drawTotals(doc, bill, y, isBill) {
+  const isGst = !isBill || bill.type === 'GST'
+  const rows  = [{ label: 'Subtotal', value: fmt(bill.subtotal) }]
+
   if (safeNum(bill.overallDiscountAmount) > 0)
-    rows.push({ label: `Discount (${safeNum(bill.overallDiscount)}%)`, value: `-${fmt(bill.overallDiscountAmount)}`, red: true });
-  if (safeNum(bill.gstAmount) > 0)
-    rows.push({ label: 'GST Amount', value: fmt(bill.gstAmount) });
+    rows.push({ label: `Discount (${safeNum(bill.overallDiscount)}%)`, value: `-${fmt(bill.overallDiscountAmount)}`, red: true })
+
+  if (isGst && safeNum(bill.gstAmount) > 0) {
+    const half = Math.round((safeNum(bill.gstAmount) / 2) * 100) / 100
+    rows.push({ label: 'CGST', value: fmt(half) })
+    rows.push({ label: 'SGST', value: fmt(half) })
+  } else if (!isGst && safeNum(bill.gstAmount) > 0) {
+    rows.push({ label: 'GST Amount', value: fmt(bill.gstAmount) })
+  }
+
   if (safeNum(bill.roundOff) !== 0 && bill.roundOff != null)
-    rows.push({ label: 'Round Off', value: fmt(bill.roundOff) });
+    rows.push({ label: 'Round Off', value: fmt(bill.roundOff) })
 
   let ty = y;
   doc.font('Helvetica').fontSize(9);
@@ -260,7 +283,7 @@ async function buildPDFDocAsync(type, doc, data, settings) {
   y = drawInfoSection(doc, leftLines, rightLines, y);
   y = drawTableHeader(doc, y, isGst);
   y = drawItems(doc, data.items || [], y, isGst);
-  y = drawTotals(doc, data, y + 6);
+  y = drawTotals(doc, data, y + 6, isBill);
 
   // ── UPI QR Section (bills only, if UPI ID is configured) ─────────────
   if (isBill && settings.upiId) {
