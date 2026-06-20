@@ -5,8 +5,11 @@ const { parsePagination, buildPaginationMeta } = require('../../utils/pagination
 
 class ProductService {
   static async create(data) {
-    const existing = await ProductRepository.findBySku(data.sku);
-    if (existing) throw ApiError.conflict(`SKU "${data.sku}" already exists`);
+    // SKU is optional — only check uniqueness if provided
+    if (data.sku) {
+      const existing = await ProductRepository.findBySku(data.sku);
+      if (existing) throw ApiError.conflict(`SKU "${data.sku}" already exists`);
+    }
 
     if (data.barcode) {
       const byBarcode = await ProductRepository.findByBarcode(data.barcode);
@@ -26,7 +29,7 @@ class ProductService {
     const product = await ProductRepository.findById(id);
     if (!product) throw ApiError.notFound('Product not found');
 
-    // SKU uniqueness check (allow same product)
+    // SKU uniqueness check (allow same product to keep its own SKU)
     if (data.sku && data.sku !== product.sku) {
       const existing = await ProductRepository.findBySku(data.sku);
       if (existing) throw ApiError.conflict(`SKU "${data.sku}" already exists`);

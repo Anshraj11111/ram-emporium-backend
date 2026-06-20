@@ -6,8 +6,8 @@ const productSchema = new mongoose.Schema(
   {
     sku: {
       type:      String,
-      required:  [true, 'SKU is required'],
       unique:    true,
+      sparse:    true,   // allows multiple null values
       trim:      true,
       uppercase: true,
     },
@@ -62,6 +62,7 @@ const productSchema = new mongoose.Schema(
       sparse: true,
     },
     description: { type: String, trim: true },
+    priceUnit:   { type: String, trim: true },  // e.g. "per sqft", "per kg"
     hsn:         { type: String, trim: true },  // HSN code for GST
     status: {
       type:    String,

@@ -3,12 +3,13 @@ const { z } = require('zod');
 const { GST_RATES, PRODUCT_STATUS } = require('../constants');
 
 const createProductSchema = z.object({
-  sku:           z.string().trim().min(1).max(50).toUpperCase(),
+  sku:           z.string().trim().max(50).toUpperCase().optional().or(z.literal('').transform(() => undefined)),
   name:          z.string().trim().min(1).max(250),
-  category:      z.string().trim().max(100).optional(),
+  category:      z.string().trim().max(100).optional().or(z.literal('').transform(() => undefined)),
   unit:          z.string().trim().max(20).optional().default('PCS'),
   purchasePrice: z.number().min(0).optional().default(0),
   sellingPrice:  z.number().min(0),
+  priceUnit:     z.string().trim().max(50).optional().or(z.literal('').transform(() => undefined)),
   gstRate:       z.number().refine((v) => GST_RATES.includes(v), {
     message: `GST rate must be one of ${GST_RATES.join(', ')}`,
   }).default(18),
