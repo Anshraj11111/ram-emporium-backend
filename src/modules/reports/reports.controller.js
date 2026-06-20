@@ -30,9 +30,7 @@ const customerWiseSales = asyncHandler(async (req, res) => {
 
 const topSellingProducts = asyncHandler(async (req, res) => {
   const result = await ReportsService.topSellingProducts(
-    req.query.limit,
-    req.query.startDate,
-    req.query.endDate
+    req.query.limit, req.query.startDate, req.query.endDate
   );
   ApiResponse.success(res, result);
 });
@@ -47,8 +45,27 @@ const profitReport = asyncHandler(async (req, res) => {
   ApiResponse.success(res, result);
 });
 
+const stockTimeline = asyncHandler(async (req, res) => {
+  const result = await ReportsService.productStockTimeline(req.query);
+  ApiResponse.success(res, result);
+});
+
+const dayWiseProductSales = asyncHandler(async (req, res) => {
+  const result = await ReportsService.dayWiseProductSales(req.query.date);
+  ApiResponse.success(res, result);
+});
+
+const monthWiseProductSales = asyncHandler(async (req, res) => {
+  const result = await ReportsService.monthWiseProductSales(
+    req.query.year, req.query.month
+  );
+  ApiResponse.success(res, result);
+});
+
 module.exports = {
   dailySales, monthlySales, yearlySales,
   productWiseSales, customerWiseSales,
   topSellingProducts, lowStockReport, profitReport,
+  dayWiseProductSales, monthWiseProductSales,
+  stockTimeline,
 };

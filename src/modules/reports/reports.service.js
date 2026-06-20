@@ -180,6 +180,132 @@ class ReportsService {
   static async lowStockReport() {
     return ProductRepository.findLowStock(100);
   }
+  static async dayWiseProductSales(date) {
+    const d     = date ? new Date(date) : new Date();
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const end   = new Date(start.getTime() + 86400000 - 1);
+
+    const pipeline = [
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id:         '$items.productId',
+          productName: { $first: '$items.productName' },
+          sku:         { $first: '$items.sku' },
+          totalQty:    { $sum: '$items.quantity' },
+          totalRev:    { $sum: '$items.totalAmount' },
+          totalOrders: { $count: {} },
+        },
+      },
+      { $sort: { totalQty: -1 } },
+    ];
+
+    return BillRepository.aggregate(pipeline);
+  }
+
+  // ── Month-wise Product Sales ─────────────────────
+  static async monthWiseProductSales(year, month) {
+    const y     = parseInt(year, 10)  || new Date().getFullYear();
+    const m     = parseInt(month, 10) || new Date().getMonth() + 1;
+    const start = new Date(y, m - 1, 1);
+    const end   = new Date(y, m, 0, 23, 59, 59, 999);
+
+    const pipeline = [
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: {
+            productId:   '$items.productId',
+            productName: '$items.productName',
+            sku:         '$items.sku',
+            day:         { $dayOfMonth: '$createdAt' },
+          },
+          totalQty: { $sum: '$items.quantity' },
+          totalRev: { $sum: '$items.totalAmount' },
+        },
+      },
+      { $sort: { '_id.day': 1, totalQty: -1 } },
+      {
+        $group: {
+          _id:         '$_id.productId',
+          productName: { $first: '$_id.productName' },
+          sku:         { $first: '$_id.sku' },
+          dailyBreakdown: {
+            $push: {
+              day:      '$_id.day',
+              totalQty: '$totalQty',
+              totalRev: '$totalRev',
+            },
+          },
+          totalQty: { $sum: '$totalQty' },
+          totalRev: { $sum: '$totalRev' },
+        },
+      },
+      { $sort: { totalQty: -1 } },
+    ];
+
+    return BillRepository.aggregate(pipeline);
+  }
+
+  // ── Product Stock Timeline ──────────────────────
+  // Shows complete stock movement history for all products with date+time
+  static async productStockTimeline({ productId, startDate, endDate }) {
+    const StockLedger = require('../stock/stockLedger.model');
+    const Product     = require('../products/product.model');
+
+    const query = {};
+    if (productId) query.productId = require('mongoose').Types.ObjectId.createFromHexString(productId);
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate)   query.createdAt.$lte = new Date(new Date(endDate).setHours(23,59,59,999));
+    }
+
+    const [entries, products] = await Promise.all([
+      StockLedger.find(query)
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .populate('productId', 'name sku unit')
+        .lean(),
+      Product.find({}, 'name sku stockQty unit minStockLevel').lean(),
+    ]);
+
+    // Group by product
+    const productMap = {};
+    for (const p of products) {
+      productMap[p._id.toString()] = {
+        _id:           p._id,
+        name:          p.name,
+        sku:           p.sku,
+        unit:          p.unit,
+        currentStock:  p.stockQty,
+        minStockLevel: p.minStockLevel,
+        movements:     [],
+      };
+    }
+
+    for (const entry of entries) {
+      const pid = entry.productId?._id?.toString() || entry.productId?.toString();
+      if (pid && productMap[pid]) {
+        productMap[pid].movements.push({
+          type:          entry.transactionType,
+          qty:           entry.quantity,
+          previousStock: entry.previousStock,
+          currentStock:  entry.currentStock,
+          remarks:       entry.remarks,
+          dateTime:      entry.createdAt,
+        });
+      }
+    }
+
+    // Return only products that have movements (or all if no filter)
+    return Object.values(productMap)
+      .filter(p => productId ? true : p.movements.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   // ── Profit Report (basic) ───────────────────────
   static async profitReport({ startDate, endDate }) {
