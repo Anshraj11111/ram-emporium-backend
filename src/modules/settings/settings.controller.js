@@ -44,4 +44,9 @@ const uploadSignature = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { signatureUrl: dataUri }, 'Signature uploaded successfully');
 });
 
-module.exports = { get, upsert, uploadLogo, uploadSignature };
+const removeSignature = asyncHandler(async (req, res) => {
+  await SettingsRepository.upsert({ signature: null, signatureUrl: null });
+  ApiResponse.success(res, {}, 'Signature removed');
+});
+
+module.exports = { get, upsert, uploadLogo, uploadSignature, removeSignature };

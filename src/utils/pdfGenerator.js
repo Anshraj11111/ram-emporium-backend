@@ -1,9 +1,9 @@
 'use strict';
-const PDFDocument = require('pdfkit');
-const QRCode      = require('qrcode');
-const fs          = require('fs');
-const path        = require('path');
-const env         = require('../config/env');
+const PDFDocument   = require('pdfkit');
+const QRCode        = require('qrcode');
+const fs            = require('fs');
+const path          = require('path');
+const env           = require('../config/env');
 const { randomHex } = require('./helpers');
 
 const PDF_BASE = path.resolve(__dirname, '../../', env.PDF_STORAGE_PATH.replace('./', ''));
@@ -16,250 +16,301 @@ const safeNum = (n) => Number(n) || 0;
 const fmt     = (n) => `Rs.${safeNum(n).toFixed(2)}`;
 const trunc   = (s, len = 35) => String(s || '').substring(0, len);
 
+// ─── Page layout constants ────────────────────────────────────────────────────
+const PAGE_W        = 595.28;   // A4 width  in pts
+const PAGE_H        = 841.89;   // A4 height in pts
+const MARGIN        = 30;
+const CONTENT_W     = PAGE_W - MARGIN * 2;  // 535.28
+
+// Header block: dark band (75pt) + blue title band (20pt) = 95pt + top margin 30 = starts content at y=138
+const HEADER_H      = 108;   // total header height (both bands)
+const HEADER_TOP    = MARGIN; // 30
+const CONTENT_TOP   = HEADER_TOP + HEADER_H + 2;  // 140 — first content line after header
+
+// Footer strip height
+const FOOTER_H      = 18;
+const FOOTER_Y      = PAGE_H - MARGIN - FOOTER_H; // ~793
+
+// Usable content area per page (between header bottom and footer top)
+const BODY_TOP      = CONTENT_TOP;   // 140
+const BODY_BOTTOM   = FOOTER_Y - 4;  // ~789
+
 const C = {
-  header: '#1E3A5F', accent: '#2563EB', white: '#FFFFFF',
-  light: '#F8FAFC', border: '#CBD5E1', text: '#1E293B',
-  sub: '#64748B', red: '#DC2626', green: '#16A34A',
+  header : '#1E3A5F',
+  accent : '#2563EB',
+  white  : '#FFFFFF',
+  light  : '#F8FAFC',
+  border : '#CBD5E1',
+  text   : '#1E293B',
+  sub    : '#64748B',
+  red    : '#DC2626',
+  green  : '#16A34A',
 };
 
-// ── Generate UPI QR as PNG buffer ─────────────────────────────────────────
+// ── Generate UPI QR PNG buffer ────────────────────────────────────────────────
 async function generateUpiQrBuffer(upiId, name, amount, note) {
   if (!upiId) return null;
   try {
     const upiLink = amount > 0
       ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name || 'RAM EMPORIUM')}&am=${safeNum(amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note || 'Payment')}`
       : `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name || 'RAM EMPORIUM')}&cu=INR`;
-
-    const buffer = await QRCode.toBuffer(upiLink, {
-      type:   'png',
-      width:  120,
-      margin: 1,
-      color:  { dark: '#1E293B', light: '#F8FAFC' },
+    return await QRCode.toBuffer(upiLink, {
+      type: 'png', width: 120, margin: 1,
+      color: { dark: '#1E293B', light: '#F8FAFC' },
       errorCorrectionLevel: 'M',
     });
-    return buffer;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function drawHeader(doc, settings, title) {
-  doc.rect(30, 30, 555, 75).fill(C.header);
+// ─── Draw the full header on whatever page is current ────────────────────────
+// Returns nothing — header is always at fixed coordinates (top of page)
+function stampHeader(doc, settings, title) {
+  const x = MARGIN;
+  const y = HEADER_TOP;
+
+  // Dark shop-info band
+  doc.rect(x, y, CONTENT_W, 78).fill(C.header);
   doc.fillColor(C.white).font('Helvetica-Bold').fontSize(16)
-     .text(settings.shopName || 'RAM EMPORIUM', 45, 42, { width: 400 });
+     .text(settings.shopName || 'RAM EMPORIUM', x + 15, y + 12, { width: 400 });
+
   doc.font('Helvetica').fontSize(8.5).fillColor('#93C5FD');
-  let hy = 62;
-  const lines = [
+  let hy = y + 34;
+  const infoLines = [
     settings.address,
     [settings.mobile, settings.email].filter(Boolean).join('  |  '),
     settings.gstNumber ? `GSTIN: ${settings.gstNumber}` : null,
   ].filter(Boolean);
-  for (const l of lines) { doc.text(l, 45, hy, { width: 400 }); hy += 11; }
-  doc.rect(30, 110, 555, 20).fill(C.accent);
+  for (const l of infoLines) { doc.text(l, x + 15, hy, { width: 400 }); hy += 11; }
+
+  // Blue title band
+  doc.rect(x, y + 80, CONTENT_W, 22).fill(C.accent);
   doc.fillColor(C.white).font('Helvetica-Bold').fontSize(10)
-     .text(title, 30, 114, { width: 555, align: 'center' });
+     .text(title, x, y + 85, { width: CONTENT_W, align: 'center' });
+
   doc.fillColor(C.text);
-  return 138;
 }
 
+// ─── Draw the footer strip on whatever page is current ───────────────────────
+function stampFooter(doc, settings, title, pageNum, totalPages) {
+  const label = totalPages > 1
+    ? `${settings.shopName || 'RAM EMPORIUM'}  |  ${title}  |  Page ${pageNum} of ${totalPages}`
+    : `${settings.shopName || 'RAM EMPORIUM'}  |  ${title}`;
+
+  // Thin separator line
+  doc.moveTo(MARGIN, FOOTER_Y - 2).lineTo(MARGIN + CONTENT_W, FOOTER_Y - 2)
+     .strokeColor(C.border).lineWidth(0.5).stroke();
+
+  doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+     .text(label, MARGIN, FOOTER_Y + 2, { width: CONTENT_W, align: 'center' });
+}
+
+// ─── Info boxes (invoice meta + customer) ─────────────────────────────────────
 function drawInfoSection(doc, leftLines, rightLines, y) {
   const rows = Math.max(leftLines.length, rightLines.length);
   const h    = rows * 14 + 18;
-  doc.rect(30,  y, 265, h).fillAndStroke(C.light, C.border);
-  doc.rect(320, y, 265, h).fillAndStroke(C.light, C.border);
-  doc.font('Helvetica').fontSize(8.5).fillColor(C.text);
+  doc.rect(MARGIN, y, 265, h).fillAndStroke(C.light, C.border);
+  doc.rect(MARGIN + 290, y, 265, h).fillAndStroke(C.light, C.border);
   let ly = y + 9;
   for (const row of leftLines) {
-    doc.font('Helvetica-Bold').fillColor(C.sub).text(row.label, 38, ly, { continued: true })
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.sub)
+       .text(row.label, MARGIN + 8, ly, { continued: true })
        .font('Helvetica').fillColor(C.text).text(` ${row.value || '-'}`);
     ly += 14;
   }
   let ry = y + 9;
   for (const row of rightLines) {
-    doc.font('Helvetica-Bold').fillColor(C.sub).text(row.label, 328, ry, { continued: true })
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.sub)
+       .text(row.label, MARGIN + 298, ry, { continued: true })
        .font('Helvetica').fillColor(C.text).text(` ${row.value || '-'}`);
     ry += 14;
   }
   return y + h + 8;
 }
 
+// ─── Table column header ──────────────────────────────────────────────────────
 function drawTableHeader(doc, y, isGst) {
-  doc.rect(30, y, 555, 17).fill(C.header);
+  doc.rect(MARGIN, y, CONTENT_W, 17).fill(C.header);
   doc.fillColor(C.white).font('Helvetica-Bold').fontSize(7.5);
-  doc.text('#',           35,  y + 5, { width: 20 });
-  doc.text('DESCRIPTION', 58,  y + 5, { width: 155 });
-  doc.text('QTY',         220, y + 5, { width: 45,  align: 'right' });
-  doc.text('RATE',        270, y + 5, { width: 55,  align: 'right' });
-  doc.text('DISC%',       330, y + 5, { width: 40,  align: 'right' });
+  doc.text('#',           MARGIN + 5,  y + 5, { width: 20 });
+  doc.text('DESCRIPTION', MARGIN + 28, y + 5, { width: 155 });
+  doc.text('QTY',         MARGIN + 190, y + 5, { width: 45,  align: 'right' });
+  doc.text('RATE',        MARGIN + 240, y + 5, { width: 55,  align: 'right' });
+  doc.text('DISC%',       MARGIN + 300, y + 5, { width: 40,  align: 'right' });
   if (isGst) {
-    doc.text('CGST%',     375, y + 5, { width: 38,  align: 'right' });
-    doc.text('SGST%',     418, y + 5, { width: 38,  align: 'right' });
-    doc.text('AMOUNT',    460, y + 5, { width: 120, align: 'right' });
+    doc.text('CGST%',     MARGIN + 345, y + 5, { width: 38,  align: 'right' });
+    doc.text('SGST%',     MARGIN + 388, y + 5, { width: 38,  align: 'right' });
+    doc.text('AMOUNT',    MARGIN + 430, y + 5, { width: 100, align: 'right' });
   } else {
-    doc.text('AMOUNT',    375, y + 5, { width: 205, align: 'right' });
+    doc.text('AMOUNT',    MARGIN + 345, y + 5, { width: 185, align: 'right' });
   }
   return y + 17;
 }
 
+// ─── Draw all items, adding pages as needed ───────────────────────────────────
+// Each new page gets header+table-header automatically; footer is stamped in post-pass
 function drawItems(doc, items, startY, isGst) {
-  let y = startY, flip = false;
-  for (let i = 0; i < items.length; i++) {
-    const item  = items[i];
-    const rowH  = 15;
-    const cgst  = safeNum(item.gstRate) / 2;   // split equally
-    const sgst  = safeNum(item.gstRate) / 2;
+  let y    = startY;
+  let flip = false;
 
-    if (y + rowH > 760) { doc.addPage(); y = 40; y = drawTableHeader(doc, y, isGst); }
-    if (flip) doc.rect(30, y, 555, rowH).fill('#F1F5F9');
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const rowH = 15;
+
+    // Need a new page?
+    if (y + rowH > BODY_BOTTOM) {
+      doc.addPage();
+      y = BODY_TOP;
+      y = drawTableHeader(doc, y, isGst);
+    }
+
+    if (flip) doc.rect(MARGIN, y, CONTENT_W, rowH).fill('#F1F5F9');
     flip = !flip;
 
+    const cgst = safeNum(item.gstRate) / 2;
+    const sgst = safeNum(item.gstRate) / 2;
+
     doc.fillColor(C.text).font('Helvetica').fontSize(8);
-    doc.text(String(i + 1),                          35,  y + 3, { width: 20 });
-    doc.text(trunc(item.productName),                58,  y + 3, { width: 155 });
-    doc.text(`${safeNum(item.quantity)} ${item.unit||''}`, 220, y + 3, { width: 45, align: 'right' });
-    doc.text(fmt(item.rate),                         270, y + 3, { width: 55,  align: 'right' });
-    doc.text(`${safeNum(item.discountPercentage)}%`, 330, y + 3, { width: 40,  align: 'right' });
+    doc.text(String(i + 1),                               MARGIN + 5,   y + 3, { width: 20 });
+    doc.text(trunc(item.productName),                     MARGIN + 28,  y + 3, { width: 155 });
+    doc.text(`${safeNum(item.quantity)} ${item.unit||''}`,MARGIN + 190, y + 3, { width: 45,  align: 'right' });
+    doc.text(fmt(item.rate),                              MARGIN + 240, y + 3, { width: 55,  align: 'right' });
+    doc.text(`${safeNum(item.discountPercentage)}%`,      MARGIN + 300, y + 3, { width: 40,  align: 'right' });
     if (isGst) {
-      doc.text(`${cgst}%`,  375, y + 3, { width: 38, align: 'right' });
-      doc.text(`${sgst}%`,  418, y + 3, { width: 38, align: 'right' });
-      doc.text(fmt(item.totalAmount), 460, y + 3, { width: 120, align: 'right' });
+      doc.text(`${cgst}%`,             MARGIN + 345, y + 3, { width: 38,  align: 'right' });
+      doc.text(`${sgst}%`,             MARGIN + 388, y + 3, { width: 38,  align: 'right' });
+      doc.text(fmt(item.totalAmount),  MARGIN + 430, y + 3, { width: 100, align: 'right' });
     } else {
-      doc.text(fmt(item.totalAmount), 375, y + 3, { width: 205, align: 'right' });
+      doc.text(fmt(item.totalAmount),  MARGIN + 345, y + 3, { width: 185, align: 'right' });
     }
     y += rowH;
   }
-  doc.moveTo(30, y).lineTo(585, y).strokeColor(C.border).lineWidth(0.5).stroke();
+
+  // Bottom border of table
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
+     .strokeColor(C.border).lineWidth(0.5).stroke();
   return y + 6;
 }
 
+// ─── Totals block ─────────────────────────────────────────────────────────────
 function drawTotals(doc, bill, y, isBill) {
-  const isGst = !isBill || bill.type === 'GST'
-  const rows  = [{ label: 'Subtotal', value: fmt(bill.subtotal) }]
+  const isGst = !isBill || bill.type === 'GST';
+  const rows  = [{ label: 'Subtotal', value: fmt(bill.subtotal) }];
 
   if (safeNum(bill.overallDiscountAmount) > 0)
-    rows.push({ label: `Discount (${safeNum(bill.overallDiscount)}%)`, value: `-${fmt(bill.overallDiscountAmount)}`, red: true })
+    rows.push({ label: `Discount (${safeNum(bill.overallDiscount)}%)`, value: `-${fmt(bill.overallDiscountAmount)}`, red: true });
 
   if (isGst && safeNum(bill.gstAmount) > 0) {
-    const half = Math.round((safeNum(bill.gstAmount) / 2) * 100) / 100
-    rows.push({ label: 'CGST', value: fmt(half) })
-    rows.push({ label: 'SGST', value: fmt(half) })
+    const half = Math.round((safeNum(bill.gstAmount) / 2) * 100) / 100;
+    rows.push({ label: 'CGST', value: fmt(half) });
+    rows.push({ label: 'SGST', value: fmt(half) });
   } else if (!isGst && safeNum(bill.gstAmount) > 0) {
-    rows.push({ label: 'GST Amount', value: fmt(bill.gstAmount) })
+    rows.push({ label: 'GST Amount', value: fmt(bill.gstAmount) });
   }
 
   if (safeNum(bill.roundOff) !== 0 && bill.roundOff != null)
-    rows.push({ label: 'Round Off', value: fmt(bill.roundOff) })
+    rows.push({ label: 'Round Off', value: fmt(bill.roundOff) });
 
   let ty = y;
   doc.font('Helvetica').fontSize(9);
   for (const row of rows) {
-    doc.fillColor(row.red ? C.red : C.sub).text(row.label, 350, ty, { width: 150, align: 'right' });
-    doc.fillColor(row.red ? C.red : C.text).text(row.value, 505, ty, { width: 75,  align: 'right' });
+    doc.fillColor(row.red ? C.red : C.sub)
+       .text(row.label, MARGIN + 320, ty, { width: 150, align: 'right' });
+    doc.fillColor(row.red ? C.red : C.text)
+       .text(row.value, MARGIN + 475, ty, { width: 60,  align: 'right' });
     ty += 15;
   }
+
   ty += 3;
-  doc.rect(340, ty, 245, 22).fill(C.header);
-  doc.fillColor(C.white).font('Helvetica-Bold').fontSize(10);
-  doc.text('GRAND TOTAL', 345, ty + 6, { width: 145, align: 'right' });
-  doc.text(fmt(bill.grandTotal), 495, ty + 6, { width: 85, align: 'right' });
+  doc.rect(MARGIN + 310, ty, 225, 22).fill(C.header);
+  doc.fillColor(C.white).font('Helvetica-Bold').fontSize(10)
+     .text('GRAND TOTAL',     MARGIN + 315, ty + 6, { width: 130, align: 'right' })
+     .text(fmt(bill.grandTotal), MARGIN + 450, ty + 6, { width: 80,  align: 'right' });
   ty += 28;
+
   doc.fillColor(C.sub).font('Helvetica').fontSize(8.5);
   if (bill.paidAmount !== undefined)
-    doc.text(`Paid: ${fmt(bill.paidAmount)}`, 350, ty, { width: 240, align: 'right' });
+    doc.text(`Paid: ${fmt(bill.paidAmount)}`, MARGIN + 310, ty, { width: 225, align: 'right' });
   if (safeNum(bill.dueAmount) > 0) {
-    ty += 12;
-    doc.fillColor(C.red).text(`Due: ${fmt(bill.dueAmount)}`, 350, ty, { width: 240, align: 'right' });
+    ty += 13;
+    doc.fillColor(C.red)
+       .text(`Due: ${fmt(bill.dueAmount)}`, MARGIN + 310, ty, { width: 225, align: 'right' });
   }
   return ty + 20;
 }
 
-// ── Draw UPI QR section at bottom of bill ─────────────────────────────────
-function drawUpiSection(doc, settings, amount, billNo, y) {
-  if (!settings.upiId) return y;
-
-  // Box
+// ─── UPI + bank details block ─────────────────────────────────────────────────
+function drawUpiBlock(doc, settings, amount, y) {
   const boxH = 110;
-  if (y + boxH > 760) { doc.addPage(); y = 40; }
-
-  doc.rect(30, y, 555, boxH).fillAndStroke('#F0F4FF', '#CBD5E1');
-
-  // Title
+  doc.rect(MARGIN, y, CONTENT_W, boxH).fillAndStroke('#F0F4FF', C.border);
   doc.font('Helvetica-Bold').fontSize(9).fillColor(C.accent)
-     .text('PAYMENT VIA UPI', 38, y + 8);
-
+     .text('PAYMENT VIA UPI', MARGIN + 8, y + 8);
   doc.font('Helvetica').fontSize(8).fillColor(C.sub)
-     .text(`UPI ID: ${settings.upiId}`, 38, y + 22);
+     .text(`UPI ID: ${settings.upiId}`, MARGIN + 8, y + 22);
 
-  // Bank details
   let bx = y + 36;
-  if (settings.bankName) {
-    doc.text(`Bank: ${settings.bankName}`, 38, bx); bx += 11;
-  }
-  if (settings.bankAccountNo) {
-    doc.text(`A/C No: ${settings.bankAccountNo}`, 38, bx); bx += 11;
-  }
-  if (settings.bankIfsc) {
-    doc.text(`IFSC: ${settings.bankIfsc}`, 38, bx);
-  }
+  if (settings.bankName)      { doc.text(`Bank: ${settings.bankName}`,       MARGIN + 8, bx); bx += 11; }
+  if (settings.bankAccountNo) { doc.text(`A/C No: ${settings.bankAccountNo}`, MARGIN + 8, bx); bx += 11; }
+  if (settings.bankIfsc)      { doc.text(`IFSC: ${settings.bankIfsc}`,        MARGIN + 8, bx); }
 
-  // Amount to pay
   doc.font('Helvetica-Bold').fontSize(10).fillColor(C.green)
-     .text(`Amount: ${fmt(amount)}`, 38, y + boxH - 22);
+     .text(`Amount: ${fmt(amount)}`, MARGIN + 8, y + boxH - 22);
 
-  // QR placeholder box (actual QR image drawn after async generation)
-  doc.rect(440, y + 8, 95, 95).fillAndStroke('#FFFFFF', '#CBD5E1');
-
-  return { qrX: 441, qrY: y + 9, qrSize: 93, nextY: y + boxH + 8 };
+  // QR box placeholder (image drawn after async QR generation)
+  doc.rect(MARGIN + CONTENT_W - 105, y + 8, 95, 95).fillAndStroke('#FFFFFF', C.border);
+  return {
+    qrX:   MARGIN + CONTENT_W - 104,
+    qrY:   y + 9,
+    qrSize: 93,
+    nextY:  y + boxH + 8,
+  };
 }
 
-function drawFooter(doc, settings, y) {
-  if (y > 700) { doc.addPage(); y = 40; }
-
+// ─── Terms + authorised signatory ────────────────────────────────────────────
+function drawTermsAndSignature(doc, settings, y) {
   if (settings.termsConditions) {
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(C.accent).text('Terms & Conditions:', 35, y);
-    y += 11;
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(C.accent)
+       .text('Terms & Conditions:', MARGIN + 5, y);
+    y += 12;
     doc.font('Helvetica').fontSize(7.5).fillColor(C.sub)
-       .text(settings.termsConditions, 35, y, { width: 320 });
+       .text(settings.termsConditions, MARGIN + 5, y, { width: 300 });
   }
 
-  // ── Signature block ──────────────────────────────
-  const sigX = 400;
+  // Signature on the right side
+  const sigX = MARGIN + CONTENT_W - 165;
   const sigY = y + 5;
 
-  // Embed signature — supports both base64 data URI and file path
   if (settings.signature) {
     try {
       if (settings.signature.startsWith('data:')) {
-        // base64 data URI — convert to buffer for PDFKit
-        const base64Data = settings.signature.split(',')[1];
-        const imgBuffer  = Buffer.from(base64Data, 'base64');
-        doc.image(imgBuffer, sigX, sigY, { width: 160, height: 42, fit: [160, 42] });
+        const buf = Buffer.from(settings.signature.split(',')[1], 'base64');
+        doc.image(buf, sigX, sigY, { width: 160, height: 42, fit: [160, 42] });
       } else if (fs.existsSync(settings.signature)) {
-        // Local file path
         doc.image(settings.signature, sigX, sigY, { width: 160, height: 42, fit: [160, 42] });
       }
-    } catch { /* skip if image fails */ }
+    } catch { /* ignore bad image */ }
   }
 
   const lineY = sigY + 50;
-  doc.font('Helvetica').fontSize(8).fillColor(C.text);
-  doc.text('Authorised Signatory', sigX, lineY, { width: 160, align: 'center' });
+  doc.font('Helvetica').fontSize(8).fillColor(C.text)
+     .text('Authorised Signatory', sigX, lineY, { width: 160, align: 'center' });
   doc.moveTo(sigX - 5, lineY + 14).lineTo(sigX + 165, lineY + 14)
      .strokeColor(C.border).lineWidth(0.5).stroke();
-  doc.fillColor(C.sub).fontSize(7.5)
+  doc.font('Helvetica').fontSize(7.5).fillColor(C.sub)
      .text(settings.shopName || 'RAM EMPORIUM', sigX, lineY + 17, { width: 160, align: 'center' });
 }
 
-// ── Shared PDF builder (async — supports QR) ──────────────────────────────
+// ─── Main PDF builder ─────────────────────────────────────────────────────────
 async function buildPDFDocAsync(type, doc, data, settings) {
-  const isGst = type === 'bill' ? data.type === 'GST' : true;
+  const isGst  = type === 'bill' ? data.type === 'GST' : true;
   const isBill = type === 'bill';
-  const title = isBill
+  const title  = isBill
     ? (isGst ? `TAX INVOICE  –  ${data.billNo}` : `INVOICE  –  ${data.billNo}`)
     : `QUOTATION  –  ${data.quotationNo}`;
 
   const snap = data.customerSnapshot || {};
-  let y = drawHeader(doc, settings, title);
+
+  // ── 1. Invoice meta + customer info ──────────────────────────────────────
+  let y = BODY_TOP;
 
   const leftLines = isBill ? [
     { label: 'Invoice No:', value: data.billNo },
@@ -274,43 +325,66 @@ async function buildPDFDocAsync(type, doc, data, settings) {
   ];
 
   const rightLines = [
-    { label: 'To:',      value: snap.name      || 'Walk-in Customer' },
-    { label: 'Mobile:',  value: snap.mobile    || '-' },
-    { label: 'Address:', value: snap.address   || '-' },
+    { label: 'To:',      value: snap.name    || 'Walk-in Customer' },
+    { label: 'Mobile:',  value: snap.mobile  || '-' },
+    { label: 'Address:', value: snap.address || '-' },
     ...(isGst && snap.gstNumber ? [{ label: 'GSTIN:', value: snap.gstNumber }] : []),
   ];
 
   y = drawInfoSection(doc, leftLines, rightLines, y);
   y = drawTableHeader(doc, y, isGst);
-  y = drawItems(doc, data.items || [], y, isGst);
-  y = drawTotals(doc, data, y + 6, isBill);
 
-  // ── UPI QR Section (bills only, if UPI ID is configured) ─────────────
+  // ── 2. Items (adds pages automatically if needed) ────────────────────────
+  y = drawItems(doc, data.items || [], y, isGst);
+
+  // ── 3. Totals ─────────────────────────────────────────────────────────────
+  const totalsH = 120; // safe fixed estimate: subtotal + gst rows + grand total + paid/due
+
+  if (y + totalsH > BODY_BOTTOM) {
+    doc.addPage();
+    y = BODY_TOP;
+  }
+  y = drawTotals(doc, data, y + 8, isBill);
+
+  // ── 4. UPI / payment section ──────────────────────────────────────────────
   if (isBill && settings.upiId) {
     const payAmount = safeNum(data.dueAmount) > 0 ? data.dueAmount : data.grandTotal;
-    const upiResult = drawUpiSection(doc, settings, payAmount, data.billNo, y + 10);
 
-    if (upiResult && upiResult.qrX) {
-      // Generate QR PNG asynchronously and embed into PDF
-      const qrBuffer = await generateUpiQrBuffer(
-        settings.upiId,
-        settings.shopName,
-        payAmount,
-        `Payment for ${data.billNo}`
-      );
-
-      if (qrBuffer) {
-        doc.image(qrBuffer, upiResult.qrX, upiResult.qrY, {
-          width:  upiResult.qrSize,
-          height: upiResult.qrSize,
-        });
-      }
-
-      y = upiResult.nextY;
+    if (y + 118 > BODY_BOTTOM) {
+      doc.addPage();
+      y = BODY_TOP;
     }
+
+    const upiResult = drawUpiBlock(doc, settings, payAmount, y);
+    const qrBuffer  = await generateUpiQrBuffer(
+      settings.upiId, settings.shopName, payAmount, `Payment for ${data.billNo || data.quotationNo}`
+    );
+    if (qrBuffer && upiResult.qrX) {
+      doc.image(qrBuffer, upiResult.qrX, upiResult.qrY, {
+        width: upiResult.qrSize, height: upiResult.qrSize,
+      });
+    }
+    y = upiResult.nextY;
   }
 
-  drawFooter(doc, settings, y + 10);
+  // ── 5. Terms & Signature ──────────────────────────────────────────────────
+  const termsH = 90 + (settings.termsConditions ? 40 : 0);
+  if (y + termsH > BODY_BOTTOM) {
+    doc.addPage();
+    y = BODY_TOP;
+  }
+  drawTermsAndSignature(doc, settings, y + 8);
+
+  // ── 6. Stamp header + footer on EVERY page (post-pass) ───────────────────
+  // bufferPages:true lets us do this cleanly
+  const range      = doc.bufferedPageRange();
+  const totalPages = range.count;
+
+  for (let i = 0; i < totalPages; i++) {
+    doc.switchToPage(range.start + i);
+    stampHeader(doc, settings, title);
+    stampFooter(doc, settings, title, i + 1, totalPages);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -319,7 +393,7 @@ async function buildPDFDocAsync(type, doc, data, settings) {
 const streamBillPDF = (bill, settings, res) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: 'A4', margin: 30 });
+      const doc      = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true });
       const filename = `${String(bill.billNo || 'BILL').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
 
       res.setHeader('Content-Type', 'application/pdf');
@@ -328,6 +402,7 @@ const streamBillPDF = (bill, settings, res) => {
 
       doc.pipe(res);
       await buildPDFDocAsync('bill', doc, bill, settings || {});
+      doc.flushPages();
       doc.end();
       resolve();
     } catch (err) {
@@ -339,7 +414,7 @@ const streamBillPDF = (bill, settings, res) => {
 const streamQuotationPDF = (quotation, settings, res) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: 'A4', margin: 30 });
+      const doc      = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true });
       const filename = `${String(quotation.quotationNo || 'QT').replace(/[^a-zA-Z0-9-_]/g, '-')}.pdf`;
 
       res.setHeader('Content-Type', 'application/pdf');
@@ -348,6 +423,7 @@ const streamQuotationPDF = (quotation, settings, res) => {
 
       doc.pipe(res);
       await buildPDFDocAsync('quotation', doc, quotation, settings || {});
+      doc.flushPages();
       doc.end();
       resolve();
     } catch (err) {
@@ -357,7 +433,7 @@ const streamQuotationPDF = (quotation, settings, res) => {
 };
 
 // ═══════════════════════════════════════════════════
-// Save to disk (local dev)
+// Save to disk (local dev / billing module)
 // ═══════════════════════════════════════════════════
 const generateBillPDF = async (bill, settings = {}) => {
   const isGst  = bill.type === 'GST';
@@ -369,10 +445,11 @@ const generateBillPDF = async (bill, settings = {}) => {
   const filepath   = path.join(dir, filename);
   const pdfUrl     = `${env.PDF_BASE_URL}/${subDir}/${filename}`;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true });
   const out  = fs.createWriteStream(filepath);
   doc.pipe(out);
   await buildPDFDocAsync('bill', doc, bill, settings);
+  doc.flushPages();
   doc.end();
   return new Promise((resolve, reject) => {
     out.on('finish', () => resolve(pdfUrl));
@@ -388,10 +465,11 @@ const generateQuotationPDF = async (quotation, settings = {}) => {
   const filepath = path.join(dir, filename);
   const pdfUrl   = `${env.PDF_BASE_URL}/quotations/${filename}`;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true });
   const out  = fs.createWriteStream(filepath);
   doc.pipe(out);
   await buildPDFDocAsync('quotation', doc, quotation, settings);
+  doc.flushPages();
   doc.end();
   return new Promise((resolve, reject) => {
     out.on('finish', () => resolve(pdfUrl));

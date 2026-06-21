@@ -12,7 +12,8 @@ router.use(authenticate);
 
 router.get('/',         controller.get);
 router.put('/',         authorize(ROLES.ADMIN), validate(upsertSettingsSchema), controller.upsert);
-router.post('/logo',    authorize(ROLES.ADMIN), upload.single('logo'),      controller.uploadLogo);
+router.post('/logo',      authorize(ROLES.ADMIN), upload.single('logo'),      controller.uploadLogo);
 router.post('/signature', authorize(ROLES.ADMIN), upload.single('signature'), controller.uploadSignature);
+router.delete('/signature', authorize(ROLES.ADMIN), controller.removeSignature);
 
 module.exports = router;
