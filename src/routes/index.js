@@ -13,5 +13,6 @@ router.use('/custom-bills',  require('../modules/billing/customBill.routes'));
 router.use('/reports',       require('../modules/reports/reports.routes'));
 router.use('/dashboard',     require('../modules/dashboard/dashboard.routes'));
 router.use('/notifications', require('../modules/notifications/notification.routes'));
+router.use('/credit',        require('../modules/credit/credit.routes'));
 
 module.exports = router;
