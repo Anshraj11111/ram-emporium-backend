@@ -29,27 +29,33 @@ class ProductRepository {
 
   /**
    * Full-text autocomplete search – target <100ms.
-   * Uses MongoDB text index (name, sku, barcode).
+   * Matches anywhere in name, sku, barcode, category, description, hsn, priceUnit.
    */
-  static async search(query, limit = 10) {
+  static async search(query, limit = 15) {
     if (!query || query.trim() === '') return [];
 
-    // Prefix regex for instant autocomplete feel
-    const regex = new RegExp(`^${query.trim()}`, 'i');
+    const q     = query.trim();
+    // "anywhere" regex — matches q anywhere in the field value
+    const regex = new RegExp(q, 'i');
 
     const products = await Product.find(
       {
         status: PRODUCT_STATUS.ACTIVE,
         $or: [
-          { name:    { $regex: regex } },
-          { sku:     { $regex: new RegExp(query.trim(), 'i') } },
-          { barcode: query.trim() },
+          { name:        regex },
+          { sku:         regex },
+          { barcode:     regex },
+          { category:    regex },
+          { description: regex },
+          { hsn:         regex },
+          { priceUnit:   regex },
         ],
       },
-      // Projection – only fields needed for search dropdown
-      { name: 1, sku: 1, sellingPrice: 1, gstRate: 1, unit: 1, stockQty: 1, barcode: 1 }
+      { name: 1, sku: 1, sellingPrice: 1, gstRate: 1, cgst: 1, sgst: 1,
+        unit: 1, stockQty: 1, barcode: 1, category: 1, priceUnit: 1 }
     )
-      .limit(limit)
+      .sort({ name: 1 })
+      .limit(Number(limit))
       .lean();
 
     return products;
@@ -70,9 +76,14 @@ class ProductRepository {
     if (search) {
       const regex = new RegExp(search, 'i');
       query.$or = [
-        { name:    regex },
-        { sku:     regex },
-        { barcode: regex },
+        { name:        regex },
+        { sku:         regex },
+        { barcode:     regex },
+        { category:    regex },
+        { description: regex },
+        { hsn:         regex },
+        { priceUnit:   regex },
+        { location:    regex },
       ];
     }
 
