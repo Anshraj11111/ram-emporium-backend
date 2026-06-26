@@ -4,10 +4,10 @@ const { BILL_TYPES, PAYMENT_MODES } = require('../../constants');
 
 const billItemSchema = new mongoose.Schema(
   {
-    productId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    productId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: false },  // Optional for manual items
     sku:                { type: String },
     productName:        { type: String, required: true },
-    unit:               { type: String },
+    unit:               { type: String, default: 'PCS' },
     quantity:           { type: Number, required: true, min: [1, 'Quantity must be at least 1'] },
     rate:               { type: Number, required: true, min: [0, 'Rate cannot be negative'] },
     discountPercentage: { type: Number, default: 0, min: 0, max: 100 },

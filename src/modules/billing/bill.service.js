@@ -15,11 +15,36 @@ const { BILL_TYPES, STOCK_TRANSACTION_TYPES, QUOTATION_STATUS } = require('../..
 
 class BillService {
   static async _buildItems(rawItems) {
-    const productIds = rawItems.map((i) => i.productId);
+    const productIds = rawItems.filter(i => i.productId).map((i) => i.productId);
     const products   = await ProductRepository.findByIds(productIds);
     const productMap = new Map(products.map((p) => [p._id.toString(), p]));
 
     return rawItems.map((item) => {
+      // Handle manual items (no productId)
+      if (!item.productId) {
+        const gstRate = item.gstRate || 0;
+        const calculated = calculateItemAmounts({
+          quantity:           item.quantity,
+          rate:               item.rate,
+          discountPercentage: item.discountPercentage || 0,
+          gstRate,
+        });
+
+        return {
+          productId:          null,
+          sku:                item.sku || 'MANUAL',
+          productName:        item.productName,
+          unit:               item.unit || 'PCS',
+          hsn:                '',
+          quantity:           item.quantity,
+          rate:               item.rate,
+          discountPercentage: item.discountPercentage || 0,
+          gstRate,
+          ...calculated,
+        };
+      }
+
+      // Handle regular product items
       const product = productMap.get(item.productId.toString());
       if (!product) throw ApiError.notFound(`Product ${item.productId} not found`);
 
@@ -109,17 +134,21 @@ class BillService {
         session
       );
 
-      // 5. Deduct stock for each item
-      const movements = items.map((item) => ({
-        productId:       item.productId,
-        transactionType: STOCK_TRANSACTION_TYPES.SALE,
-        quantity:        -item.quantity,   // negative = OUT
-        referenceId:     bill._id,
-        referenceType:   'Bill',
-        remarks:         `Sale – ${billNo}`,
-        createdBy:       userId,
-      }));
-      await StockService.bulkMovement(movements, session);
+      // 5. Deduct stock for each item (skip manual items without productId)
+      const movements = items
+        .filter(item => item.productId)  // Only items with productId
+        .map((item) => ({
+          productId:       item.productId,
+          transactionType: STOCK_TRANSACTION_TYPES.SALE,
+          quantity:        -item.quantity,   // negative = OUT
+          referenceId:     bill._id,
+          referenceType:   'Bill',
+          remarks:         `Sale – ${billNo}`,
+          createdBy:       userId,
+        }));
+      if (movements.length > 0) {
+        await StockService.bulkMovement(movements, session);
+      }
 
       // 6. If converted from quotation – mark it
       if (data.quotationId) {

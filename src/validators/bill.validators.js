@@ -3,12 +3,14 @@ const { z } = require('zod');
 const { BILL_TYPES, PAYMENT_MODES, GST_RATES } = require('../constants');
 
 const billItemSchema = z.object({
-  productId:          z.string().min(24).max(24),
+  productId:          z.string().min(24).max(24).optional(),  // Optional for manual items
   quantity:           z.number().min(1),
   rate:               z.number().min(0),
   discountPercentage: z.number().min(0).max(100).optional().default(0),
   gstRate:            z.number().min(0).max(100).optional(),
-  productName:        z.string().trim().optional(),
+  productName:        z.string().trim().min(1, 'Product name is required'),  // Required for manual items
+  sku:                z.string().trim().optional(),     // Optional - manual items use 'MANUAL'
+  unit:               z.string().trim().optional(),     // Optional - defaults to 'PCS'
 });
 
 const createBillSchema = z.object({
