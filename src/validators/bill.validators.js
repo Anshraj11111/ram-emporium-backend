@@ -36,4 +36,9 @@ const convertQuotationSchema = z.object({
   notes:       z.string().trim().max(500).optional(),
 });
 
-module.exports = { createBillSchema, convertQuotationSchema };
+const updateBillSchema = createBillSchema.partial().extend({
+  // Allow partial update — type can be omitted
+  type: z.enum(Object.values(BILL_TYPES)).optional(),
+});
+
+module.exports = { createBillSchema, updateBillSchema, convertQuotationSchema };

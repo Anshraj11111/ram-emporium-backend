@@ -236,6 +236,57 @@ class BillService {
     await BillRepository.deleteById(id);
     return true;
   }
+
+  /**
+   * Update an existing bill — recalculate totals and rebuild items.
+   */
+  static async update(id, data) {
+    const existing = await BillRepository.findById(id);
+    if (!existing) throw ApiError.notFound('Bill not found');
+
+    // Rebuild items if provided
+    let items = existing.items;
+    if (data.items && data.items.length > 0) {
+      items = await BillService._buildItems(data.items);
+    }
+
+    const type           = data.type || existing.type;
+    const overallDiscount = data.overallDiscount !== undefined ? data.overallDiscount : existing.overallDiscount;
+    const totals         = calculateBillTotals(items, overallDiscount);
+    const rawGrand       = totals.grandTotal;
+    const rounded        = Math.round(rawGrand);
+    const roundOff       = round2(rounded - rawGrand);
+    const grandTotal     = rounded;
+
+    const paidAmount = data.paidAmount !== undefined ? data.paidAmount : existing.paidAmount;
+    const dueAmount  = round2(grandTotal - paidAmount);
+
+    // Customer snapshot
+    let customerSnapshot = existing.customerSnapshot;
+    if (data.customerSnapshot) {
+      customerSnapshot = { ...customerSnapshot, ...data.customerSnapshot };
+    }
+
+    const updated = await BillRepository.updateById(id, {
+      type,
+      customerSnapshot,
+      items,
+      overallDiscount,
+      paymentMode:           data.paymentMode || existing.paymentMode,
+      notes:                 data.notes !== undefined ? data.notes : existing.notes,
+      roundOff,
+      subtotal:              totals.subtotal,
+      overallDiscountAmount: totals.overallDiscountAmount,
+      gstAmount:             totals.gstAmount,
+      grandTotal,
+      paidAmount,
+      dueAmount,
+    });
+
+    return updated;
+  }
 }
+
+module.exports = BillService;
 
 module.exports = BillService;
