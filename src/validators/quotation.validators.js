@@ -3,12 +3,14 @@ const { z } = require('zod');
 const { QUOTATION_STATUS, GST_RATES } = require('../constants');
 
 const quotationItemSchema = z.object({
-  productId:          z.string().min(24).max(24),
+  productId:          z.string().min(24).max(24).optional(),  // Optional for manual items
   quantity:           z.number().min(1),
   rate:               z.number().min(0),
   discountPercentage: z.number().min(0).max(100).optional().default(0),
   gstRate:            z.number().min(0).max(100).optional(),
-  productName:        z.string().trim().optional(),
+  productName:        z.string().trim().min(1, 'Product name is required'),  // Required
+  sku:                z.string().trim().optional(),
+  unit:               z.string().trim().optional(),
 });
 
 const createQuotationSchema = z.object({

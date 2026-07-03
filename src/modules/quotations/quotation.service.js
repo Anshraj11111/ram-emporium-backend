@@ -16,11 +16,36 @@ class QuotationService {
    * Build processed items array (calculate discounts, GST, totals).
    */
   static async _buildItems(rawItems) {
-    const productIds = rawItems.map((i) => i.productId);
+    const productIds = rawItems.filter(i => i.productId).map((i) => i.productId);
     const products   = await ProductRepository.findByIds(productIds);
     const productMap = new Map(products.map((p) => [p._id.toString(), p]));
 
     return rawItems.map((item) => {
+      // Handle manual items (no productId)
+      if (!item.productId) {
+        const gstRate = item.gstRate || 0;
+        const calculated = calculateItemAmounts({
+          quantity:           item.quantity,
+          rate:               item.rate,
+          discountPercentage: item.discountPercentage || 0,
+          gstRate,
+        });
+
+        return {
+          productId:          null,
+          sku:                item.sku || 'MANUAL',
+          productName:        item.productName,
+          unit:               item.unit || 'PCS',
+          hsn:                '',
+          quantity:           item.quantity,
+          rate:               item.rate,
+          discountPercentage: item.discountPercentage || 0,
+          gstRate,
+          ...calculated,
+        };
+      }
+
+      // Handle regular product items
       const product = productMap.get(item.productId.toString());
       if (!product) throw ApiError.notFound(`Product ${item.productId} not found`);
 
