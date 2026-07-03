@@ -265,7 +265,42 @@ function drawUpiBlock(doc, settings, amount, y) {
   };
 }
 
-// ─── Terms + authorised signatory ────────────────────────────────────────────
+// ─── Bank details block (for quotations) ─────────────────────────────────────
+function drawBankDetails(doc, settings, y) {
+  const hasBankDetails = settings.bankName || settings.bankAccountNo || settings.bankIfsc;
+  const hasUpi         = settings.upiId;
+  if (!hasBankDetails && !hasUpi) return y;
+
+  const boxH = 22 + (hasBankDetails ? 36 : 0) + (hasUpi ? 14 : 0) + 8;
+  doc.rect(MARGIN, y, CONTENT_W * 0.55, boxH).fillAndStroke('#F0F4FF', C.border);
+
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(C.accent)
+     .text('BANK / PAYMENT DETAILS', MARGIN + 8, y + 8);
+
+  let by = y + 22;
+  doc.font('Helvetica').fontSize(8.5).fillColor(C.text);
+  if (settings.bankName) {
+    doc.font('Helvetica-Bold').fillColor(C.sub).text('Bank: ', MARGIN + 8, by, { continued: true })
+       .font('Helvetica').fillColor(C.text).text(settings.bankName);
+    by += 12;
+  }
+  if (settings.bankAccountNo) {
+    doc.font('Helvetica-Bold').fillColor(C.sub).text('A/C No: ', MARGIN + 8, by, { continued: true })
+       .font('Helvetica').fillColor(C.text).text(settings.bankAccountNo);
+    by += 12;
+  }
+  if (settings.bankIfsc) {
+    doc.font('Helvetica-Bold').fillColor(C.sub).text('IFSC: ', MARGIN + 8, by, { continued: true })
+       .font('Helvetica').fillColor(C.text).text(settings.bankIfsc);
+    by += 12;
+  }
+  if (settings.upiId) {
+    doc.font('Helvetica-Bold').fillColor(C.sub).text('UPI ID: ', MARGIN + 8, by, { continued: true })
+       .font('Helvetica').fillColor(C.accent).text(settings.upiId);
+  }
+
+  return y + boxH + 8;
+}
 function drawTermsAndSignature(doc, settings, y) {
   if (settings.termsConditions) {
     doc.font('Helvetica-Bold').fontSize(8).fillColor(C.accent)
@@ -365,6 +400,13 @@ async function buildPDFDocAsync(type, doc, data, settings) {
       });
     }
     y = upiResult.nextY;
+  }
+
+  // ── 4b. Bank details for quotations ──────────────────────────────────────
+  if (!isBill) {
+    const bankH = 80;
+    if (y + bankH > BODY_BOTTOM) { doc.addPage(); y = BODY_TOP; }
+    y = drawBankDetails(doc, settings, y);
   }
 
   // ── 5. Terms & Signature ──────────────────────────────────────────────────
