@@ -6,21 +6,6 @@
     "auditLog": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\.e3c5225e7424fd64c1605d5945028d40aeeccee0-audit.json",
     "files": [
         {
-            "date": 1780722563833,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-06-06.log",
-            "hash": "762a6a6bc166080fa13ca3e09a0593e01b4928c855e97c3506df961099fe72cb"
-        },
-        {
-            "date": 1780770889137,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-06-07.log",
-            "hash": "4eb4d2192489cbf5112917d03d5b62a9539edadcd90be170c9253abb521104e1"
-        },
-        {
-            "date": 1780928329145,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-06-08.log",
-            "hash": "24116dbb56dd9639c1ba70188e703c47f22292fef954585af0605b909f3fb25d"
-        },
-        {
             "date": 1781200801871,
             "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-06-11.log",
             "hash": "8ba266423b9e51a6a67caa5a25f7be9290b340fa8f069b8e635966dd7bd74c48"
@@ -69,6 +54,11 @@
             "date": 1783067860571,
             "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-07-03.log",
             "hash": "c1c66ebb3b852d2a13beafbc31dabb63a900cd4adc24b268fc1c3a8080a6987d"
+        },
+        {
+            "date": 1783768040710,
+            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\combined-2026-07-11.log",
+            "hash": "87d442b38a0b42f0c5e420c8c1688acce5482fb100f7170ebfeba4af8c2c9fe5"
         }
     ],
     "hashType": "sha256"
