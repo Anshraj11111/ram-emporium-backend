@@ -10,6 +10,7 @@ router.use(authenticate)
 router.get('/',                  controller.list)
 router.post('/',                 controller.create)
 router.get('/:id',               controller.getById)
+router.patch('/:id',             controller.update)
 router.post('/:id/generate-pdf', controller.generatePDF)
 router.delete('/:id',            authorize(ROLES.ADMIN, ROLES.STAFF), controller.deleteBill)
 
