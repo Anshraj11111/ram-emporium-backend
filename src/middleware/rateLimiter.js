@@ -12,7 +12,7 @@ const defaultLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max:      env.LOGIN_RATE_LIMIT_MAX,
+  max:      env.NODE_ENV === 'development' ? 1000 : env.LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders:   false,
   message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many login attempts. Please wait 15 minutes.' } },

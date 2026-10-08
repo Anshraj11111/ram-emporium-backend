@@ -179,12 +179,10 @@ class AuthService {
 
   // ── Change Password ──────────────────────────────
   static async changePassword(userId, currentPassword, newPassword) {
-    const user = await UserRepository.findByIdWithPassword(userId);
-    if (!user) throw ApiError.notFound('User not found');
-
-    // user from lean() doesn't have comparePassword – fetch as Document
     const userDoc = await require('../users/user.model').findById(userId).select('+password');
-    const match   = await userDoc.comparePassword(currentPassword);
+    if (!userDoc) throw ApiError.notFound('User not found');
+
+    const match = await userDoc.comparePassword(currentPassword);
     if (!match) throw ApiError.badRequest('Current password is incorrect');
 
     userDoc.password     = newPassword;

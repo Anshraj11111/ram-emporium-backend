@@ -8,10 +8,13 @@ const billItemSchema = z.object({
   rate:               z.number().min(0),
   discountPercentage: z.number().min(0).max(100).optional().default(0),
   gstRate:            z.number().min(0).max(100).optional(),
-  productName:        z.string().trim().min(1, 'Product name is required'),  // Required for manual items
+  productName:        z.string().trim().min(1).optional(),  // Optional if productId given; required for manual items
   sku:                z.string().trim().optional(),     // Optional - manual items use 'MANUAL'
   unit:               z.string().trim().optional(),     // Optional - defaults to 'PCS'
-});
+}).refine(
+  (item) => item.productId || (item.productName && item.productName.trim().length > 0),
+  { message: 'productName is required for manual items (without productId)', path: ['productName'] }
+);
 
 const createBillSchema = z.object({
   type:            z.enum(Object.values(BILL_TYPES)),

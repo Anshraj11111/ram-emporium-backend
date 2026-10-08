@@ -8,10 +8,13 @@ const quotationItemSchema = z.object({
   rate:               z.number().min(0),
   discountPercentage: z.number().min(0).max(100).optional().default(0),
   gstRate:            z.number().min(0).max(100).optional(),
-  productName:        z.string().trim().min(1, 'Product name is required'),  // Required
+  productName:        z.string().trim().min(1).optional(),  // Optional if productId given; required for manual items
   sku:                z.string().trim().optional(),
   unit:               z.string().trim().optional(),
-});
+}).refine(
+  (item) => item.productId || (item.productName && item.productName.trim().length > 0),
+  { message: 'productName is required for manual items (without productId)', path: ['productName'] }
+);
 
 const createQuotationSchema = z.object({
   customerId:      z.string().min(24).max(24).optional().or(z.literal('').transform(() => undefined)),

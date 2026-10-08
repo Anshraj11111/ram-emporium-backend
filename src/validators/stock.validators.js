@@ -3,7 +3,7 @@ const { z } = require('zod');
 
 const adjustStockSchema = z.object({
   productId: z.string().min(24).max(24),
-  quantity:  z.number().min(0),
+  quantity:  z.number().min(0).refine((v) => v !== 0, { message: 'Quantity cannot be zero' }),
   remarks:   z.string().trim().max(300).optional(),
 });
 
