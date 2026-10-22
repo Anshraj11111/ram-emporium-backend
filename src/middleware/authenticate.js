@@ -1,12 +1,13 @@
 'use strict';
-const jwt     = require('jsonwebtoken');
-const env     = require('../config/env');
-const ApiError = require('../utils/ApiError');
+const jwt          = require('jsonwebtoken');
+const env          = require('../config/env');
+const ApiError     = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
-const UserRepository = require('../modules/users/user.repository');
 
 /**
  * Verify JWT access token and attach user to req.user.
+ * We trust the JWT payload — no DB call needed on every request.
+ * The token already carries id, role, and is signed with our secret.
  */
 const authenticate = asyncHandler(async (req, _res, next) => {
   const authHeader = req.headers.authorization;
@@ -20,14 +21,17 @@ const authenticate = asyncHandler(async (req, _res, next) => {
   try {
     decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
   } catch (err) {
-    throw err; // caught by errorHandler (JsonWebTokenError / TokenExpiredError)
+    throw err; // caught by errorHandler (JsonWebTokenError / TokenExpiredError → 401)
   }
 
-  const user = await UserRepository.findById(decoded.id);
-  if (!user) throw ApiError.unauthorized('User no longer exists');
-  if (!user.isVerified) throw ApiError.forbidden('Please verify your email first');
+  // Attach minimal user object from token payload — no DB round-trip
+  req.user = {
+    _id:        decoded.id,
+    id:         decoded.id,
+    role:       decoded.role,
+    isVerified: true,
+  };
 
-  req.user = user;
   next();
 });
 

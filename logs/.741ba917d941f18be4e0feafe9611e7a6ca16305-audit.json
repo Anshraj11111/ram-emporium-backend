@@ -6,54 +6,14 @@
     "auditLog": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\.741ba917d941f18be4e0feafe9611e7a6ca16305-audit.json",
     "files": [
         {
-            "date": 1781869932152,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-19.log",
-            "hash": "85a26ffbc79440060efa7f57078a54443630f466ad14d4429a3c014e9ac91cb6"
+            "date": 1791354146123,
+            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-10-07.log",
+            "hash": "b5827068f6a6db63849de8159c249415b285e8ff7f5558ea5a5d48fa7637ee1a"
         },
         {
-            "date": 1781940172859,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-20.log",
-            "hash": "b6acbec6ff21bb328f81fae16f34b7bd5b3ab4bfc992ed869f89ee1f37c99002"
-        },
-        {
-            "date": 1781981721690,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-21.log",
-            "hash": "4791b1dca9ad154114515938b80aa89a963472ccc738aaa642bbcc778392b7fc"
-        },
-        {
-            "date": 1782230076380,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-23.log",
-            "hash": "ca42ffdbfd88b9cc78c373a7c64536f4fe08a41c4bb9a7fce2e24a1a334bfb9d"
-        },
-        {
-            "date": 1782406182319,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-25.log",
-            "hash": "f98ba755a7014b65bd142ef34a92c58aabb0f77aded1e227190646aa5a01cc86"
-        },
-        {
-            "date": 1782491929970,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-26.log",
-            "hash": "c40cad7812dc1133452659143ffd24c40d2658e8a66b30e9cbb1469629ba7b25"
-        },
-        {
-            "date": 1782749648666,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-06-29.log",
-            "hash": "27efead82ffc973f3d7ed7cc15ca44dcf16b60d68f408992cce9facf5fbeba2d"
-        },
-        {
-            "date": 1783067860579,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-07-03.log",
-            "hash": "a71c49e60e91a7b333e8ea2d48fd08f31baa38fe64eb600c3306d1bfe9562efe"
-        },
-        {
-            "date": 1783768040742,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-07-11.log",
-            "hash": "e223452adfe147f7cb97015f8582a4e07fb51fcc1dff42b52cd08e3952446d0d"
-        },
-        {
-            "date": 1784364533605,
-            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-07-18.log",
-            "hash": "6bd9c8429808276936598636df0ec77986d9cf38800753280fa732fd7262cf46"
+            "date": 1791437680302,
+            "name": "C:\\Users\\lenvo\\OneDrive\\Desktop\\Client -Project\\Ram Emporium\\backend\\logs\\error-2026-10-08.log",
+            "hash": "1e6ff17d5114ba0983bc8cb27f09809c61014d0f43e3b155c3a6bb26c364ea54"
         }
     ],
     "hashType": "sha256"

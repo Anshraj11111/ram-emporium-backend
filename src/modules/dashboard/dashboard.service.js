@@ -1,6 +1,7 @@
 'use strict';
 const Bill              = require('../billing/bill.model');
 const Product           = require('../products/product.model');
+const Customer          = require('../customers/customer.model');
 const { PRODUCT_STATUS } = require('../../constants');
 
 class DashboardService {
@@ -16,6 +17,7 @@ class DashboardService {
       salesMonthResult,
       totalBills,
       totalProducts,
+      totalCustomers,
       lowStockProducts,
       recentBills,
       topSelling,
@@ -30,6 +32,7 @@ class DashboardService {
       ]),
       Bill.countDocuments(),
       Product.countDocuments({ status: PRODUCT_STATUS.ACTIVE }),
+      Customer.countDocuments({ isActive: true }),
       Product.find({
         status: PRODUCT_STATUS.ACTIVE,
         $expr:  { $lt: ['$stockQty', '$minStockLevel'] },
@@ -66,6 +69,7 @@ class DashboardService {
       totalBillsThisMonth: salesMonthResult[0]?.count || 0,
       totalBills,
       totalProducts,
+      totalCustomers,
       lowStockCount:       lowStockProducts.length,
       lowStockProducts,
       recentBills,
