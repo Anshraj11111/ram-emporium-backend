@@ -124,7 +124,14 @@ class AuthService {
 
     const user = await UserRepository.findByIdWithPassword(decoded.id);
     if (!user) throw ApiError.unauthorized('User not found');
-    if (user.refreshToken !== token) throw ApiError.unauthorized('Refresh token reuse detected');
+
+    // Token mismatch — could be a race condition from parallel requests
+    // or a genuine reuse attempt. Either way, invalidate and force re-login.
+    if (user.refreshToken !== token) {
+      // Invalidate all sessions as a security measure
+      await UserRepository.updateById(decoded.id, { refreshToken: null });
+      throw ApiError.unauthorized('Session expired. Please log in again.');
+    }
 
     const tokenPayload = { id: user._id, role: user.role };
     const newAccess    = AuthService.generateAccessToken(tokenPayload);
