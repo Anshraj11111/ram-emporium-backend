@@ -238,55 +238,109 @@ class BillService {
   }
 
   /**
-   * Update an existing bill — recalculate totals and rebuild items.
+   * Update an existing bill — recalculate totals, rebuild items,
+   * and adjust stock for quantity differences.
    */
   static async update(id, data) {
     const existing = await BillRepository.findById(id);
     if (!existing) throw ApiError.notFound('Bill not found');
 
-    // Rebuild items if provided
-    let items = existing.items;
-    if (data.items && data.items.length > 0) {
-      items = await BillService._buildItems(data.items);
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Rebuild items if provided
+      let items = existing.items;
+      if (data.items && data.items.length > 0) {
+        items = await BillService._buildItems(data.items);
+      }
+
+      const type            = data.type || existing.type;
+      const overallDiscount = data.overallDiscount !== undefined ? data.overallDiscount : existing.overallDiscount;
+      const totals          = calculateBillTotals(items, overallDiscount);
+      const rawGrand        = totals.grandTotal;
+      const rounded         = Math.round(rawGrand);
+      const roundOff        = round2(rounded - rawGrand);
+      const grandTotal      = rounded;
+
+      const paidAmount = data.paidAmount !== undefined ? data.paidAmount : existing.paidAmount;
+      const dueAmount  = round2(grandTotal - paidAmount);
+
+      // Customer snapshot
+      let customerSnapshot = existing.customerSnapshot;
+      if (data.customerSnapshot) {
+        customerSnapshot = { ...customerSnapshot, ...data.customerSnapshot };
+      }
+
+      // ── Stock adjustment for changed quantities ──────────
+      if (data.items && data.items.length > 0) {
+        // Build maps: productId → quantity for old and new items
+        const oldQtyMap = new Map();
+        for (const item of existing.items) {
+          if (!item.productId) continue;
+          const key = item.productId.toString();
+          oldQtyMap.set(key, (oldQtyMap.get(key) || 0) + item.quantity);
+        }
+
+        const newQtyMap = new Map();
+        for (const item of items) {
+          if (!item.productId) continue;
+          const key = item.productId.toString();
+          newQtyMap.set(key, (newQtyMap.get(key) || 0) + item.quantity);
+        }
+
+        // Collect all product IDs from both old and new
+        const allProductIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+
+        const stockMovements = [];
+        for (const productId of allProductIds) {
+          const oldQty = oldQtyMap.get(productId) || 0;
+          const newQty = newQtyMap.get(productId) || 0;
+          const diff   = newQty - oldQty; // positive = more sold, negative = less sold
+
+          if (diff === 0) continue; // no change
+
+          stockMovements.push({
+            productId,
+            transactionType: STOCK_TRANSACTION_TYPES.ADJUSTMENT,
+            quantity:        -diff,  // negative diff means stock should go back (return)
+            referenceId:     existing._id,
+            referenceType:   'BillEdit',
+            remarks:         `Bill edit – ${existing.billNo} (qty ${diff > 0 ? '+' : ''}${diff})`,
+          });
+        }
+
+        if (stockMovements.length > 0) {
+          await StockService.bulkMovement(stockMovements, session);
+        }
+      }
+
+      const updated = await BillRepository.updateById(id, {
+        type,
+        customerSnapshot,
+        items,
+        overallDiscount,
+        paymentMode:           data.paymentMode || existing.paymentMode,
+        notes:                 data.notes !== undefined ? data.notes : existing.notes,
+        roundOff,
+        subtotal:              totals.subtotal,
+        overallDiscountAmount: totals.overallDiscountAmount,
+        gstAmount:             totals.gstAmount,
+        grandTotal,
+        paidAmount,
+        dueAmount,
+      });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return updated;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
     }
-
-    const type           = data.type || existing.type;
-    const overallDiscount = data.overallDiscount !== undefined ? data.overallDiscount : existing.overallDiscount;
-    const totals         = calculateBillTotals(items, overallDiscount);
-    const rawGrand       = totals.grandTotal;
-    const rounded        = Math.round(rawGrand);
-    const roundOff       = round2(rounded - rawGrand);
-    const grandTotal     = rounded;
-
-    const paidAmount = data.paidAmount !== undefined ? data.paidAmount : existing.paidAmount;
-    const dueAmount  = round2(grandTotal - paidAmount);
-
-    // Customer snapshot
-    let customerSnapshot = existing.customerSnapshot;
-    if (data.customerSnapshot) {
-      customerSnapshot = { ...customerSnapshot, ...data.customerSnapshot };
-    }
-
-    const updated = await BillRepository.updateById(id, {
-      type,
-      customerSnapshot,
-      items,
-      overallDiscount,
-      paymentMode:           data.paymentMode || existing.paymentMode,
-      notes:                 data.notes !== undefined ? data.notes : existing.notes,
-      roundOff,
-      subtotal:              totals.subtotal,
-      overallDiscountAmount: totals.overallDiscountAmount,
-      gstAmount:             totals.gstAmount,
-      grandTotal,
-      paidAmount,
-      dueAmount,
-    });
-
-    return updated;
   }
 }
-
-module.exports = BillService;
 
 module.exports = BillService;
